@@ -23,30 +23,30 @@
 /// <reference path="node_modules/es6-shim/es6-shim.min.js" />
 /// <reference path="promise-store.ts" />
 /// <reference path="lmlayer-interface.ts" />
-/// <reference path="headless-workerFactory.ts" />
+/// <reference path="web-workerFactory.ts" />
+
+/**
+ * Top-level interface to the Language Modelling layer, or "LMLayer" for short.
+ * 
+ * The Language Modelling layer provides a way for keyboards to offer prediction and
+ * correction functionalities. The LMLayer proper runs within a Web Worker, however,
+ * this class is intended to run in the main thread, and automatically spawn a Web
+ * Worker, capable of offering predictions.
+ * 
+ * Since the Worker runs in a different thread, the public methods of this class are
+ * asynchronous. Methods of note include:
+ * 
+ *  - #loadModel() -- loads a specified model file
+ *  - #predict() -- ask the LMLayer to offer suggestions (predictions or corrections) for
+ *                  the input event
+ *  - #unloadModel() -- unloads the LMLayer's currently loaded model, preparing it to
+ *                          receive (load) a new model
+ * 
+ * The top-level LMLayer will automatically starts up its own Web Worker.
+ */
 
 namespace com.keyman.text.prediction {
-  /**
-   * Top-level interface to the Language Modelling layer, or "LMLayer" for short.
-   * 
-   * The Language Modelling layer provides a way for keyboards to offer prediction and
-   * correction functionalities. The LMLayer proper runs within a Web Worker, however,
-   * this class is intended to run in the main thread, and automatically spawn a Web
-   * Worker, capable of offering predictions.
-   * 
-   * Since the Worker runs in a different thread, the public methods of this class are
-   * asynchronous. Methods of note include:
-   * 
-   *  - #loadModel() -- loads a specified model file
-   *  - #predict() -- ask the LMLayer to offer suggestions (predictions or corrections) for
-   *                  the input event
-   *  - #unloadModel() -- unloads the LMLayer's currently loaded model, preparing it to
-   *                          receive (load) a new model
-   * 
-   * The top-level LMLayer will automatically starts up its own Web Worker.
-   */
-
-  export class LMLayer extends com.keyman.text.prediction.LMLayerBase {
+  export class LMLayer extends LMLayerBase {
     /**
      * Construct the top-level LMLayer interface. This also starts the underlying Worker.
      * 
@@ -54,7 +54,7 @@ namespace com.keyman.text.prediction {
      *            or file: URI. If uri is not provided, this will start the default Worker.
      */
     constructor(capabilities: Capabilities) {
-      super(capabilities, new HeadlessWorkerFactory());
+      super(capabilities, new WebWorkerFactory());
     }
   }
 }

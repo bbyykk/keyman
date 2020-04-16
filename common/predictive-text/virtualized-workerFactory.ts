@@ -9,7 +9,7 @@ namespace com.keyman.text.prediction {
   var fs = require("fs");
   var vm = require("vm");
 
-  class HeadlessWorkerContext {
+  class VirtualizedWorkerContext {
     // The LMLayerWorker assigns itself to 'window', so we provide an alias.
     window: any;
 
@@ -36,14 +36,20 @@ namespace com.keyman.text.prediction {
     }
   }
 
-  export class HeadlessWorker implements Worker {
+  /**
+   * Note:  this does not create an actual Worker, separate process, or thread.  Everything will
+   *        be executed in-line on a virtualized context.
+   * 
+   *        In the future, it might be nice to use Node's Worker Threads implementation.
+   */
+  export class VirtualizedWorker implements Worker {
     private _worker: any;  // Really, the LMLayerWorker... but some of its types are problematic for headless.
-    private _workerContext: HeadlessWorkerContext;
+    private _workerContext: VirtualizedWorkerContext;
 
     constructor() {
-      this._workerContext = new HeadlessWorkerContext();
+      this._workerContext = new VirtualizedWorkerContext();
       // Needs to exist before setting up the worker; must exist by `.install()`.
-      this._workerContext.postMessage = this.transferMessage.bind(this);
+      this._workerContext.postMessage = this.workerPostMessage.bind(this);
 
       // Initialize the "worker".
       let script = LMLayerBase.unwrap(LMLayerWorkerCode);
@@ -54,7 +60,8 @@ namespace com.keyman.text.prediction {
       this._worker = this._workerContext['LMLayerWorker'];
     }
 
-    private transferMessage(message: any, options: any) {
+    // Sends the worker's postMessage messages to the appropriate `onmessage` handler.
+    private workerPostMessage(message: any, options: any) {
       if(this.onmessage) {
         this.onmessage({data: message} as any as MessageEvent);
       }
@@ -65,7 +72,18 @@ namespace com.keyman.text.prediction {
     postMessage(message: any, transfer: any[]): void;
     postMessage(message: any, options?: PostMessageOptions): void;
     postMessage(message: any, options?: any) {
-      this._worker.onMessage({data: message} as any as MessageEvent);
+      let msgObj = {data: message};
+      let msgJSON = JSON.stringify(msgObj);
+
+      /* 
+       * Execute the command within the virtualized worker's scope.  The worker's returned 
+       * `postMessage` calls will still reach outside, as they have a reference to `this` via
+       * `postMessage` (which we've set to a bound `this.workerPostMessage`).
+       * 
+       * Among other things, this will allow the worker to use its internal namespaces without issue.
+       */
+      let msgCommand = "onmessage(" + msgJSON + ")";
+      this._workerContext.__importScriptString(msgCommand);
     }
 
     terminate(): void {
@@ -73,9 +91,9 @@ namespace com.keyman.text.prediction {
     }
   }
 
-  export class HeadlessWorkerFactory implements com.keyman.text.prediction.WorkerFactory {
+  export class VirtualizedWorkerFactory implements com.keyman.text.prediction.WorkerFactory {
     constructInstance(): Worker {
-      return new HeadlessWorker();
+      return new VirtualizedWorker();
     }
   }
 }
